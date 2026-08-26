@@ -29,7 +29,7 @@ class RouteCache:
     def __init__(
         self,
         db_path: str | Path,
-        max_age_hours: int = 24,
+        max_age_hours: int = 2,
         negative_max_age_minutes: int = 30,
     ) -> None:
         self.db_path = Path(db_path)

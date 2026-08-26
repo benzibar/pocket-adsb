@@ -9,8 +9,14 @@ from pocket_adsb.models.aircraft import Aircraft
 from pocket_adsb.services.adsbdb_route_provider import (
     AdsbDbRouteProvider,
 )
+from pocket_adsb.services.adsbim_route_provider import (
+    AdsbImRouteProvider,
+)
 from pocket_adsb.services.aircraft_database import AircraftDatabase
 from pocket_adsb.services.airline_database import AirlineDatabase
+from pocket_adsb.services.consensus_route_provider import (
+    ConsensusRouteProvider,
+)
 from pocket_adsb.services.data_source import AircraftDataSource
 from pocket_adsb.services.database_update import AircraftDatabaseUpdater
 from pocket_adsb.services.enrichment import AircraftEnricher
@@ -84,13 +90,18 @@ class PocketADSB(App):
 
         self.route_cache = RouteCache(
             database_path,
-            max_age_hours=24,
+            max_age_hours=2,
             negative_max_age_minutes=30,
         )
 
         self.route_cache.initialise()
 
-        self.route_provider = AdsbDbRouteProvider()
+        self.route_provider = ConsensusRouteProvider(
+            providers=[
+                AdsbDbRouteProvider(),
+                AdsbImRouteProvider(),
+            ]
+        )
 
         self.route_service = RouteService(
             cache=self.route_cache,
