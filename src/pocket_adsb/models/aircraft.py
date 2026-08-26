@@ -7,9 +7,11 @@ class Aircraft:
     callsign: str = ""
     registration: str = ""
     aircraft_type: str = ""
+    description: str = ""
     category: str = ""
     country: str = ""
     airline: str = ""
+    airline_callsign: str = ""
     operator: str = ""
 
     altitude_ft: int | None = None

@@ -221,3 +221,4 @@ __marimo__/
 # Databases
 data/*.db
 data/*.csv.gz
+data/*.dat

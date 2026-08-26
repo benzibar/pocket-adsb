@@ -4,6 +4,7 @@ from textual.screen import Screen
 from textual.widgets import Static
 
 from pocket_adsb.models.aircraft import Aircraft
+from pocket_adsb.utils.category import category_description
 from pocket_adsb.utils.formatting import (
     format_altitude,
     format_direction_detail,
@@ -147,16 +148,19 @@ class AircraftDetailScreen(Screen):
             "AIRCRAFT\n"
             f"\nRegistration: {format_text(aircraft.registration)}"
             f"\nType:         {format_text(aircraft.aircraft_type)}"
-            f"\nCategory:     {format_text(aircraft.category)}"
+            f"\nDescription:  {format_text(aircraft.description)}"
+            f"\nCategory:     {category_description(aircraft.category)}"
             f"\nCountry:      {format_text(aircraft.country)}"
             f"\nICAO:         {aircraft.icao}"
-            f"\nAirline:      {format_text(aircraft.airline)}"
             f"\nOperator:     {format_text(aircraft.operator)}"
-            f"\nSquawk:       {format_text(aircraft.squawk)}"
         )
 
         self.query_one("#flight-details", Static).update(
             "FLIGHT\n"
+            f"\nFlight ID:    {format_text(aircraft.callsign)}"
+            f"\nAirline:      {format_text(aircraft.airline)}"
+            f"\nCallsign:     {format_text(aircraft.airline_callsign)}"
+            f"\nSquawk:       {format_text(aircraft.squawk)}"
             f"\nAltitude:     {altitude}"
             f"\nSelected:     {selected_altitude}"
             f"\nSpeed:        {speed}"
