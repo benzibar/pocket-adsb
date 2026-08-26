@@ -249,6 +249,7 @@ class RadarScreen(Screen):
             radius_y,
         )
 
+        # Our own position.
         grid[centre_y][centre_x] = "+"
 
         rendered = "\n".join(
@@ -355,7 +356,7 @@ class RadarScreen(Screen):
             ):
                 grid[south_y][centre_x] = "+"
 
-            # Label 50% and 100% only.
+            # Only label 50% and 100%.
             if index % 2 != 0:
                 continue
 
@@ -366,7 +367,8 @@ class RadarScreen(Screen):
             label = str(range_value)
 
             if fraction == 1.0:
-                # Keep outer labels inside the W/E boundary.
+                # Keep the outer horizontal labels
+                # inside the W/E boundary.
                 self._write_text(
                     grid,
                     west_x + 2,
@@ -478,7 +480,6 @@ class RadarScreen(Screen):
                 Aircraft,
                 int,
                 int,
-                str,
             ]
         ] = []
 
@@ -518,46 +519,33 @@ class RadarScreen(Screen):
             ):
                 continue
 
-            symbol = self._track_symbol(
-                aircraft.track_deg
-            )
-
             plotted.append(
                 (
                     aircraft,
                     x,
                     y,
-                    symbol,
                 )
             )
 
-            # Normal aircraft keep their direction symbol
-            # at the exact plotted position.
-            #
-            # The selected aircraft will instead have the
-            # symbol included inside its bracketed label.
-            if (
-                aircraft.icao
-                != self.selected_icao
-            ):
-                grid[y][x] = symbol
-
-        # Draw normal labels first.
-        for (
-            aircraft,
-            x,
-            y,
-            symbol,
-        ) in plotted:
+        # Draw normal aircraft first.
+        for aircraft, x, y in plotted:
             if (
                 aircraft.icao
                 == self.selected_icao
             ):
                 continue
 
-            label = (
+            callsign = (
                 aircraft.callsign
                 or aircraft.icao
+            )
+
+            direction = self._track_direction(
+                aircraft.track_deg
+            )
+
+            label = (
+                f"(•) {callsign} - {direction}"
             )
 
             label_x, label_y = (
@@ -576,8 +564,7 @@ class RadarScreen(Screen):
                 label,
             )
 
-        # Draw selected aircraft last so it remains
-        # visually dominant.
+        # Draw selected aircraft last.
         selected_plot = next(
             (
                 item
@@ -589,20 +576,19 @@ class RadarScreen(Screen):
         )
 
         if selected_plot is not None:
-            (
-                aircraft,
-                x,
-                y,
-                symbol,
-            ) = selected_plot
+            aircraft, x, y = selected_plot
 
-            base_label = (
+            callsign = (
                 aircraft.callsign
                 or aircraft.icao
             )
 
+            direction = self._track_direction(
+                aircraft.track_deg
+            )
+
             selected_label = (
-                f"[{symbol} {base_label}]"
+                f"[*] {callsign} - {direction}"
             )
 
             label_x, label_y = (
@@ -621,6 +607,7 @@ class RadarScreen(Screen):
                 selected_label,
             )
 
+            # Bold the complete selected aircraft entry.
             bold_spans.append(
                 (
                     label_x,
@@ -639,28 +626,23 @@ class RadarScreen(Screen):
         label: str,
     ) -> tuple[int, int]:
         """
-        Keep the selected label on the aircraft's own row.
+        Keep the selected aircraft marker anchored at
+        its actual plotted position.
 
-        The first character of the bracketed selection is
-        positioned as close to the aircraft's true position
-        as possible.
+        Normal:
+            (•) EZY41KD - E
 
-        Example:
-
-            [↗ BAW143]
-
-        This makes the selected target immediately obvious.
+        Selected:
+            [*] EZY41KD - E
         """
 
         width = len(grid[0])
         label_length = len(label)
 
-        # Prefer to start the bracket exactly at the plotted
-        # aircraft position.
         label_x = aircraft_x
 
-        # If that would run off the right edge, move the whole
-        # selected label left while keeping it on the same row.
+        # If the entry would run beyond the right edge,
+        # shift the whole thing left.
         if (
             label_x + label_length
             > width
@@ -687,35 +669,31 @@ class RadarScreen(Screen):
 
         label_length = len(label)
 
+        # The first character of the marker should ideally
+        # sit at the aircraft's calculated position.
         candidates = [
             (
-                aircraft_x + 2,
+                aircraft_x,
                 aircraft_y,
             ),
             (
-                aircraft_x
-                - label_length
-                - 1,
+                aircraft_x - label_length + 3,
                 aircraft_y,
             ),
             (
-                aircraft_x + 2,
+                aircraft_x,
                 aircraft_y + 1,
             ),
             (
-                aircraft_x
-                - label_length
-                - 1,
+                aircraft_x - label_length + 3,
                 aircraft_y + 1,
             ),
             (
-                aircraft_x + 2,
+                aircraft_x,
                 aircraft_y - 1,
             ),
             (
-                aircraft_x
-                - label_length
-                - 1,
+                aircraft_x - label_length + 3,
                 aircraft_y - 1,
             ),
         ]
@@ -772,7 +750,7 @@ class RadarScreen(Screen):
 
         fallback_x = min(
             max(
-                aircraft_x + 1,
+                aircraft_x,
                 0,
             ),
             max(
@@ -795,11 +773,11 @@ class RadarScreen(Screen):
         )
 
     @staticmethod
-    def _track_symbol(
+    def _track_direction(
         track_deg: float | None,
     ) -> str:
         if track_deg is None:
-            return "*"
+            return "--"
 
         track = (
             float(track_deg)
@@ -813,18 +791,18 @@ class RadarScreen(Screen):
             // 45
         ) % 8
 
-        symbols = (
-            "↑",   # N
-            "↗",   # NE
-            "→",   # E
-            "↘",   # SE
-            "↓",   # S
-            "↙",   # SW
-            "←",   # W
-            "↖",   # NW
+        directions = (
+            "N",
+            "NE",
+            "E",
+            "SE",
+            "S",
+            "SW",
+            "W",
+            "NW",
         )
 
-        return symbols[index]
+        return directions[index]
 
     def _update_status(self) -> None:
         status = self.query_one(
