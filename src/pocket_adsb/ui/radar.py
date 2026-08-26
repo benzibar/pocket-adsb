@@ -332,31 +332,19 @@ class RadarScreen(Screen):
             north_y = centre_y - vertical_offset
             south_y = centre_y + vertical_offset
 
-            if (
-                0 <= west_x < width
-                and 0 <= centre_y < height
-            ):
+            if 0 <= west_x < width:
                 grid[centre_y][west_x] = "+"
 
-            if (
-                0 <= east_x < width
-                and 0 <= centre_y < height
-            ):
+            if 0 <= east_x < width:
                 grid[centre_y][east_x] = "+"
 
-            if (
-                0 <= north_y < height
-                and 0 <= centre_x < width
-            ):
+            if 0 <= north_y < height:
                 grid[north_y][centre_x] = "+"
 
-            if (
-                0 <= south_y < height
-                and 0 <= centre_x < width
-            ):
+            if 0 <= south_y < height:
                 grid[south_y][centre_x] = "+"
 
-            # Only label 50% and 100%.
+            # Label only 50% and 100%.
             if index % 2 != 0:
                 continue
 
@@ -367,8 +355,6 @@ class RadarScreen(Screen):
             label = str(range_value)
 
             if fraction == 1.0:
-                # Keep the outer horizontal labels
-                # inside the W/E boundary.
                 self._write_text(
                     grid,
                     west_x + 2,
@@ -483,6 +469,7 @@ class RadarScreen(Screen):
             ]
         ] = []
 
+        # Calculate all aircraft positions first.
         for aircraft in self._aircraft_in_range():
             if (
                 aircraft.distance_nm is None
@@ -527,14 +514,59 @@ class RadarScreen(Screen):
                 )
             )
 
-        # Draw normal aircraft first.
+        # -------------------------------------------------
+        # Draw ALL position markers first.
+        #
+        # Crucially, x/y always represents the CENTRE
+        # character of the three-character marker:
+        #
+        #     (•)
+        #      ^
+        #
+        # and:
+        #
+        #     [*]
+        #      ^
+        #
+        # Selection therefore cannot change the aircraft's
+        # plotted position.
+        # -------------------------------------------------
+
         for aircraft, x, y in plotted:
-            if (
+            is_selected = (
                 aircraft.icao
                 == self.selected_icao
-            ):
-                continue
+            )
 
+            marker = (
+                "[*]"
+                if is_selected
+                else "(•)"
+            )
+
+            marker_x = x - 1
+
+            self._write_text(
+                grid,
+                marker_x,
+                y,
+                marker,
+            )
+
+            if is_selected:
+                bold_spans.append(
+                    (
+                        marker_x,
+                        y,
+                        len(marker),
+                    )
+                )
+
+        # -------------------------------------------------
+        # Draw labels independently of position markers.
+        # -------------------------------------------------
+
+        for aircraft, x, y in plotted:
             callsign = (
                 aircraft.callsign
                 or aircraft.icao
@@ -545,11 +577,16 @@ class RadarScreen(Screen):
             )
 
             label = (
-                f"(•) {callsign} - {direction}"
+                f"{callsign} - {direction}"
+            )
+
+            is_selected = (
+                aircraft.icao
+                == self.selected_icao
             )
 
             label_x, label_y = (
-                self._choose_label_position(
+                self._choose_aircraft_label_position(
                     grid,
                     x,
                     y,
@@ -564,61 +601,18 @@ class RadarScreen(Screen):
                 label,
             )
 
-        # Draw selected aircraft last.
-        selected_plot = next(
-            (
-                item
-                for item in plotted
-                if item[0].icao
-                == self.selected_icao
-            ),
-            None,
-        )
-
-        if selected_plot is not None:
-            aircraft, x, y = selected_plot
-
-            callsign = (
-                aircraft.callsign
-                or aircraft.icao
-            )
-
-            direction = self._track_direction(
-                aircraft.track_deg
-            )
-
-            selected_label = (
-                f"[*] {callsign} - {direction}"
-            )
-
-            label_x, label_y = (
-                self._choose_selected_label_position(
-                    grid,
-                    x,
-                    y,
-                    selected_label,
+            if is_selected:
+                bold_spans.append(
+                    (
+                        label_x,
+                        label_y,
+                        len(label),
+                    )
                 )
-            )
-
-            self._write_text(
-                grid,
-                label_x,
-                label_y,
-                selected_label,
-            )
-
-            # Bold the complete selected aircraft entry.
-            bold_spans.append(
-                (
-                    label_x,
-                    label_y,
-                    len(selected_label),
-                )
-            )
 
         return bold_spans
 
-    def _choose_selected_label_position(
+    def _choose_aircraft_label_position(
         self,
         grid: list[list[str]],
         aircraft_x: int,
@@ -626,74 +620,76 @@ class RadarScreen(Screen):
         label: str,
     ) -> tuple[int, int]:
         """
-        Keep the selected aircraft marker anchored at
-        its actual plotted position.
+        Position the descriptive label independently
+        from the aircraft's actual position marker.
 
-        Normal:
-            (•) EZY41KD - E
+        The marker itself never moves.
 
-        Selected:
-            [*] EZY41KD - E
+        Preferred layout:
+
+            (•) CALLSIGN - NE
+             ^
+             exact aircraft coordinate
+
+        If there isn't room, the text can move while
+        the marker remains fixed.
         """
 
-        width = len(grid[0])
-        label_length = len(label)
-
-        label_x = aircraft_x
-
-        # If the entry would run beyond the right edge,
-        # shift the whole thing left.
-        if (
-            label_x + label_length
-            > width
-        ):
-            label_x = max(
-                0,
-                width - label_length,
-            )
-
-        return (
-            label_x,
-            aircraft_y,
-        )
-
-    def _choose_label_position(
-        self,
-        grid: list[list[str]],
-        aircraft_x: int,
-        aircraft_y: int,
-        label: str,
-    ) -> tuple[int, int]:
         width = len(grid[0])
         height = len(grid)
 
         label_length = len(label)
 
-        # The first character of the marker should ideally
-        # sit at the aircraft's calculated position.
+        # Marker occupies:
+        #
+        # aircraft_x - 1
+        # aircraft_x
+        # aircraft_x + 1
+        #
+        # Leave one blank column after it.
+        right_x = aircraft_x + 3
+
+        # Left-side label ends one column before marker.
+        left_x = (
+            aircraft_x
+            - 3
+            - label_length
+        )
+
         candidates = [
+            # Same row, right of marker.
             (
-                aircraft_x,
+                right_x,
                 aircraft_y,
             ),
+
+            # Same row, left of marker.
             (
-                aircraft_x - label_length + 3,
+                left_x,
                 aircraft_y,
             ),
+
+            # One row below, right.
             (
-                aircraft_x,
+                right_x,
                 aircraft_y + 1,
             ),
+
+            # One row below, left.
             (
-                aircraft_x - label_length + 3,
+                left_x,
                 aircraft_y + 1,
             ),
+
+            # One row above, right.
             (
-                aircraft_x,
+                right_x,
                 aircraft_y - 1,
             ),
+
+            # One row above, left.
             (
-                aircraft_x - label_length + 3,
+                left_x,
                 aircraft_y - 1,
             ),
         ]
@@ -725,8 +721,7 @@ class RadarScreen(Screen):
                 existing = grid[
                     candidate_y
                 ][
-                    candidate_x
-                    + offset
+                    candidate_x + offset
                 ]
 
                 if existing != " ":
@@ -748,9 +743,10 @@ class RadarScreen(Screen):
         if best_position is not None:
             return best_position
 
+        # Last resort: fit the label on screen.
         fallback_x = min(
             max(
-                aircraft_x,
+                right_x,
                 0,
             ),
             max(
