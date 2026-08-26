@@ -18,6 +18,9 @@ from pocket_adsb.utils.formatting import (
     format_seen,
     format_speed,
 )
+from pocket_adsb.services.enrichment import AircraftEnricher
+from pocket_adsb.services.aircraft_database import AircraftDatabase
+from pocket_adsb.services.enrichment import AircraftEnricher
 
 
 class PocketADSB(App):
@@ -56,6 +59,14 @@ class PocketADSB(App):
 
         self.sort_field = "DIST"
         self.sort_reverse = False
+
+        self.aircraft_database = AircraftDatabase(
+            Path("data/pocket_adsb.db")
+        )
+
+        self.aircraft_enricher = AircraftEnricher(
+            self.aircraft_database
+        )
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -129,6 +140,9 @@ class PocketADSB(App):
 
     def refresh_aircraft(self) -> None:
         self.aircraft = self.data_source.get_aircraft()
+
+        self.aircraft = self.aircraft_enricher.enrich_all(self.aircraft)
+
         receiver_status = self.data_source.get_status()
 
         sorted_aircraft = self.get_sorted_aircraft()
