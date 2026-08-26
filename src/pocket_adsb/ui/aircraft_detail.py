@@ -1,7 +1,7 @@
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Footer, Static
+from textual.widgets import Static
 
 from pocket_adsb.models.aircraft import Aircraft
 from pocket_adsb.utils.compass import degrees_to_compass
@@ -15,10 +15,12 @@ class AircraftDetailScreen(Screen):
 
     CSS = """
     #detail {
-        padding: 1 2;
+        padding: 0 2;
+        height: 1fr;
     }
 
     #callsign {
+        height: auto;
         text-style: bold;
         margin-bottom: 1;
     }
@@ -29,21 +31,38 @@ class AircraftDetailScreen(Screen):
 
     .detail-column {
         width: 1fr;
+        height: auto;
         padding-right: 2;
     }
 
+    #aircraft-details {
+        height: auto;
+    }
+
+    #flight-details {
+        height: auto;
+    }
+
     #route {
+        height: auto;
         margin-top: 1;
-        margin-bottom: 1;
     }
 
     #message-details {
+        height: auto;
         margin-top: 1;
+    }
+
+    #detail-footer {
+        height: 1;
+        dock: bottom;
+        content-align: center middle;
     }
     """
 
     def __init__(self, aircraft: Aircraft) -> None:
         super().__init__()
+
         self.aircraft_icao = aircraft.icao
         self.aircraft = aircraft
 
@@ -61,14 +80,18 @@ class AircraftDetailScreen(Screen):
             yield Static("", id="route")
             yield Static("", id="message-details")
 
-        yield Footer()
+        # Custom footer so the main-screen sorting controls
+        # are not shown on the aircraft detail screen.
+        yield Static(
+            "Esc: Back",
+            id="detail-footer",
+        )
 
     def on_mount(self) -> None:
         self.update_display()
         self.set_interval(1.0, self.update_display)
 
     def update_display(self) -> None:
-        # Get the latest version of this aircraft from the main app.
         aircraft = next(
             (
                 item
@@ -126,10 +149,11 @@ class AircraftDetailScreen(Screen):
         )
 
         self.query_one("#route", Static).update(
-            f"ROUTE\n{aircraft.origin}  >  {aircraft.destination}"
+            f"ROUTE   "
+            f"{aircraft.origin} > {aircraft.destination}"
         )
 
         self.query_one("#message-details", Static).update(
-            f"Last message:   {aircraft.seen_seconds:.1f}s ago"
-            f"\nLast position:  {aircraft.seen_pos_seconds:.1f}s ago"
+            f"Last msg: {aircraft.seen_seconds:.1f}s   "
+            f"Last pos: {aircraft.seen_pos_seconds:.1f}s"
         )
