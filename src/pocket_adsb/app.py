@@ -11,17 +11,11 @@ from pocket_adsb.services.data_source import AircraftDataSource
 from pocket_adsb.services.readsb import ReadsbDataSource
 from pocket_adsb.services.simulator import AircraftSimulator
 from pocket_adsb.ui.aircraft_detail import AircraftDetailScreen
-from pocket_adsb.utils.formatting import (
-    format_altitude,
-    format_direction,
-    format_distance,
-    format_seen,
-    format_speed,
-)
+from pocket_adsb.utils.formatting import (format_altitude,format_direction,format_distance,format_seen,format_speed,)
 from pocket_adsb.services.enrichment import AircraftEnricher
 from pocket_adsb.services.aircraft_database import AircraftDatabase
 from pocket_adsb.services.enrichment import AircraftEnricher
-
+from pocket_adsb.services.database_update import (AircraftDatabaseUpdater,)
 
 class PocketADSB(App):
     TITLE = "Pocket ADS-B"
@@ -266,6 +260,21 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    updater = AircraftDatabaseUpdater(
+        data_dir=Path("data"),
+        max_age_days=7,
+    )
+
+    result = updater.ensure_database()
+
+    print(result.message)
+
+    if result.record_count is not None:
+        print(
+            f"Aircraft records: "
+            f"{result.record_count:,}"
+        )
 
     data_source = create_data_source(args.source)
 
