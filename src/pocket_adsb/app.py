@@ -27,6 +27,7 @@ from pocket_adsb.services.route_cache import RouteCache
 from pocket_adsb.services.route_service import RouteService
 from pocket_adsb.services.simulator import AircraftSimulator
 from pocket_adsb.ui.aircraft_detail import AircraftDetailScreen
+from pocket_adsb.ui.radar import RadarScreen
 from pocket_adsb.utils.formatting import (
     format_altitude,
     format_direction,
@@ -40,6 +41,7 @@ class PocketADSB(App):
     TITLE = "Pocket ADS-B"
 
     BINDINGS = [
+        ("x", "open_radar", "Radar"),
         ("d", "sort_distance", "Dist"),
         ("a", "sort_altitude", "Alt"),
         ("c", "sort_callsign", "Call"),
@@ -337,6 +339,17 @@ class PocketADSB(App):
             )
 
         self.refresh_aircraft()
+
+    def action_open_radar(
+        self,
+    ) -> None:
+        self.push_screen(
+            RadarScreen(
+                selected_icao=(
+                    self.selected_aircraft_icao
+                )
+            )
+        )
 
     def action_sort_distance(
         self,
