@@ -14,6 +14,7 @@ from pocket_adsb.services.airline_database import AirlineDatabase
 from pocket_adsb.services.data_source import AircraftDataSource
 from pocket_adsb.services.database_update import AircraftDatabaseUpdater
 from pocket_adsb.services.enrichment import AircraftEnricher
+from pocket_adsb.services.network_status import NetworkStatusService
 from pocket_adsb.services.position_source import FixedPositionSource
 from pocket_adsb.services.readsb import ReadsbDataSource
 from pocket_adsb.services.route_cache import RouteCache
@@ -100,6 +101,10 @@ class PocketADSB(App):
             aircraft_database=self.aircraft_database,
             airline_database=self.airline_database,
             route_service=self.route_service,
+        )
+
+        self.network_status = NetworkStatusService(
+            cache_seconds=5.0
         )
 
     def compose(self) -> ComposeResult:
@@ -225,6 +230,10 @@ class PocketADSB(App):
             self.data_source.get_status()
         )
 
+        wifi_status = (
+            self.network_status.status_text()
+        )
+
         sorted_aircraft = (
             self.get_sorted_aircraft()
         )
@@ -294,11 +303,10 @@ class PocketADSB(App):
 
         status.update(
             f"{receiver_status.mode} | "
-            f"AC "
-            f"{receiver_status.aircraft_count} | "
+            f"AC {receiver_status.aircraft_count} | "
             f"{receiver_status.message_rate:.0f}/s | "
-            f"GPS "
-            f"{receiver_status.gps_status} | "
+            f"GPS {receiver_status.gps_status} | "
+            f"WIFI {wifi_status} | "
             f"{self.get_sort_indicator()}"
         )
 
@@ -358,10 +366,8 @@ class PocketADSB(App):
         event: DataTable.RowHighlighted,
     ) -> None:
         if event.row_key.value is not None:
-            self.selected_aircraft_icao = (
-                str(
-                    event.row_key.value
-                )
+            self.selected_aircraft_icao = str(
+                event.row_key.value
             )
 
     def on_data_table_row_selected(
@@ -376,8 +382,7 @@ class PocketADSB(App):
             (
                 item
                 for item in self.aircraft
-                if item.icao
-                == aircraft_icao
+                if item.icao == aircraft_icao
             ),
             None,
         )
@@ -392,21 +397,16 @@ class PocketADSB(App):
 
 def create_data_source(
     source: str,
+    readsb_path: Path,
 ) -> AircraftDataSource:
     if source == "readsb":
-        path = Path(
-            "test_data/readsb_aircraft.json"
-        )
-
-        position_source = (
-            FixedPositionSource(
-                latitude=52.15,
-                longitude=-2.22,
-            )
+        position_source = FixedPositionSource(
+            latitude=52.15,
+            longitude=-2.22,
         )
 
         return ReadsbDataSource(
-            path,
+            readsb_path,
             position_source=position_source,
         )
 
@@ -426,6 +426,18 @@ def main() -> None:
         ),
         default="sim",
         help="Aircraft data source",
+    )
+
+    parser.add_argument(
+        "--readsb-path",
+        type=Path,
+        default=Path(
+            "test_data/readsb_aircraft.json"
+        ),
+        help=(
+            "Path to readsb aircraft.json "
+            "(default: test_data/readsb_aircraft.json)"
+        ),
     )
 
     args = parser.parse_args()
@@ -453,7 +465,8 @@ def main() -> None:
         )
 
     data_source = create_data_source(
-        args.source
+        source=args.source,
+        readsb_path=args.readsb_path,
     )
 
     PocketADSB(

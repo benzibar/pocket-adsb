@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import json
 from pathlib import Path
+from typing import Any
 
 from pocket_adsb.models.aircraft import Aircraft
 from pocket_adsb.models.receiver_status import ReceiverStatus
@@ -17,163 +20,302 @@ class ReadsbDataSource(AircraftDataSource):
         aircraft_json_path: str | Path,
         position_source: PositionSource | None = None,
     ) -> None:
-        self.aircraft_json_path = Path(aircraft_json_path)
+        self.aircraft_json_path = Path(
+            aircraft_json_path
+        )
+
         self.position_source = position_source
 
-        self.aircraft: list[Aircraft] = []
-        self.message_count = 0
+        self._last_aircraft: list[Aircraft] = []
+        self._last_message_count: int | None = None
+        self._last_now: float | None = None
+        self._message_rate = 0.0
 
     def get_aircraft(self) -> list[Aircraft]:
-        with self.aircraft_json_path.open(
-            "r",
-            encoding="utf-8",
-        ) as file:
-            data = json.load(file)
+        data = self._read_json()
 
-        self.message_count = int(data.get("messages", 0))
+        if data is None:
+            # Retain the last valid snapshot if readsb
+            # happens to be updating aircraft.json while
+            # Pocket ADS-B attempts to read it.
+            return self._last_aircraft
+
+        aircraft_data = data.get(
+            "aircraft",
+            [],
+        )
 
         aircraft_list: list[Aircraft] = []
 
-        own_position = (
-            self.position_source.get_position()
-            if self.position_source is not None
-            else None
-        )
+        receiver_position = None
 
-        for raw in data.get("aircraft", []):
-            icao = str(raw.get("hex", "")).upper()
+        if self.position_source is not None:
+            receiver_position = (
+                self.position_source.get_position()
+            )
 
-            if not icao:
+        for raw in aircraft_data:
+            if not isinstance(raw, dict):
                 continue
 
-            callsign = str(raw.get("flight", "")).strip()
+            aircraft = self._parse_aircraft(
+                raw
+            )
 
-            altitude = raw.get("alt_baro")
-            if not isinstance(altitude, (int, float)):
-                altitude = None
-
-            selected_altitude = raw.get("nav_altitude_mcp")
-            if not isinstance(selected_altitude, (int, float)):
-                selected_altitude = None
-
-            speed = raw.get("gs")
-            if not isinstance(speed, (int, float)):
-                speed = None
-
-            vertical_rate = raw.get("baro_rate")
-            if not isinstance(vertical_rate, (int, float)):
-                vertical_rate = None
-
-            track = raw.get("track")
-            if not isinstance(track, (int, float)):
-                track = None
-
-            latitude = raw.get("lat")
-            if not isinstance(latitude, (int, float)):
-                latitude = None
-
-            longitude = raw.get("lon")
-            if not isinstance(longitude, (int, float)):
-                longitude = None
-
-            seen = raw.get("seen")
-            if not isinstance(seen, (int, float)):
-                seen = 0.0
-
-            seen_pos = raw.get("seen_pos")
-            if not isinstance(seen_pos, (int, float)):
-                seen_pos = None
-
-            distance_nm = None
-            bearing_from_us_deg = None
+            if aircraft is None:
+                continue
 
             if (
-                own_position is not None
-                and latitude is not None
-                and longitude is not None
+                receiver_position is not None
+                and aircraft.latitude is not None
+                and aircraft.longitude is not None
             ):
-                distance_nm = calculate_distance_nm(
-                    own_position,
-                    float(latitude),
-                    float(longitude),
+                aircraft.distance_nm = (
+                    calculate_distance_nm(
+                        receiver_position,
+                        aircraft.latitude,
+                        aircraft.longitude,
+                    )
                 )
 
-                bearing_from_us_deg = calculate_bearing_deg(
-                    own_position,
-                    float(latitude),
-                    float(longitude),
+                aircraft.bearing_from_us_deg = (
+                    calculate_bearing_deg(
+                        receiver_position,
+                        aircraft.latitude,
+                        aircraft.longitude,
+                    )
                 )
 
             aircraft_list.append(
-                Aircraft(
-                    icao=icao,
-                    callsign=callsign,
-                    category=str(raw.get("category", "")),
-                    altitude_ft=(
-                        int(altitude)
-                        if altitude is not None
-                        else None
-                    ),
-                    selected_altitude_ft=(
-                        int(selected_altitude)
-                        if selected_altitude is not None
-                        else None
-                    ),
-                    speed_kt=(
-                        float(speed)
-                        if speed is not None
-                        else None
-                    ),
-                    vertical_rate_fpm=(
-                        int(vertical_rate)
-                        if vertical_rate is not None
-                        else None
-                    ),
-                    squawk=str(raw.get("squawk", "")),
-                    latitude=(
-                        float(latitude)
-                        if latitude is not None
-                        else None
-                    ),
-                    longitude=(
-                        float(longitude)
-                        if longitude is not None
-                        else None
-                    ),
-                    distance_nm=distance_nm,
-                    bearing_from_us_deg=bearing_from_us_deg,
-                    track_deg=(
-                        float(track)
-                        if track is not None
-                        else None
-                    ),
-                    seen_seconds=float(seen),
-                    seen_pos_seconds=(
-                        float(seen_pos)
-                        if seen_pos is not None
-                        else None
-                    ),
-                )
+                aircraft
             )
 
-        self.aircraft = aircraft_list
+        self._update_message_rate(
+            data
+        )
 
-        return self.aircraft
+        self._last_aircraft = aircraft_list
+
+        return aircraft_list
 
     def get_status(self) -> ReceiverStatus:
-        gps_status = (
-            "FIX"
-            if (
-                self.position_source is not None
-                and self.position_source.get_position() is not None
+        position_status = "---"
+
+        if self.position_source is not None:
+            position_status = (
+                self.position_source.status_text()
             )
-            else "---"
-        )
 
         return ReceiverStatus(
-            mode="ADSB",
-            aircraft_count=len(self.aircraft),
-            message_rate=0,
-            gps_status=gps_status,
+            mode="READSB",
+            aircraft_count=len(
+                self._last_aircraft
+            ),
+            message_rate=self._message_rate,
+            gps_status=position_status,
             wifi_status="---",
         )
+
+    def _read_json(
+        self,
+    ) -> dict[str, Any] | None:
+        try:
+            with self.aircraft_json_path.open(
+                "r",
+                encoding="utf-8",
+            ) as file:
+                data = json.load(file)
+
+        except (
+            FileNotFoundError,
+            PermissionError,
+            json.JSONDecodeError,
+            OSError,
+        ):
+            return None
+
+        if not isinstance(data, dict):
+            return None
+
+        return data
+
+    def _parse_aircraft(
+        self,
+        raw: dict[str, Any],
+    ) -> Aircraft | None:
+        icao = self._text(
+            raw.get("hex")
+        ).upper()
+
+        if not icao:
+            return None
+
+        latitude = self._number(
+            raw.get("lat")
+        )
+
+        longitude = self._number(
+            raw.get("lon")
+        )
+
+        altitude = self._integer(
+            raw.get("alt_baro")
+        )
+
+        if altitude is None:
+            altitude = self._integer(
+                raw.get("alt_geom")
+            )
+
+        selected_altitude = self._integer(
+            raw.get("nav_altitude_mcp")
+        )
+
+        if selected_altitude is None:
+            selected_altitude = self._integer(
+                raw.get("nav_altitude_fms")
+            )
+
+        speed = self._number(
+            raw.get("gs")
+        )
+
+        track = self._number(
+            raw.get("track")
+        )
+
+        vertical_rate = self._integer(
+            raw.get("baro_rate")
+        )
+
+        if vertical_rate is None:
+            vertical_rate = self._integer(
+                raw.get("geom_rate")
+            )
+
+        seen = self._number(
+            raw.get("seen")
+        )
+
+        if seen is None:
+            seen = 0.0
+
+        seen_pos = self._number(
+            raw.get("seen_pos")
+        )
+
+        return Aircraft(
+            icao=icao,
+            callsign=self._text(
+                raw.get("flight")
+            ),
+            registration=self._text(
+                raw.get("r")
+            ),
+            aircraft_type=self._text(
+                raw.get("t")
+            ),
+            category=self._text(
+                raw.get("category")
+            ),
+            squawk=self._text(
+                raw.get("squawk")
+            ),
+            altitude_ft=altitude,
+            selected_altitude_ft=selected_altitude,
+            speed_kt=speed,
+            vertical_rate_fpm=vertical_rate,
+            latitude=latitude,
+            longitude=longitude,
+            track_deg=track,
+            seen_seconds=seen,
+            seen_pos_seconds=seen_pos,
+        )
+
+    def _update_message_rate(
+        self,
+        data: dict[str, Any],
+    ) -> None:
+        message_count = self._integer(
+            data.get("messages")
+        )
+
+        now = self._number(
+            data.get("now")
+        )
+
+        if (
+            message_count is None
+            or now is None
+        ):
+            return
+
+        if (
+            self._last_message_count is not None
+            and self._last_now is not None
+        ):
+            elapsed = (
+                now - self._last_now
+            )
+
+            message_delta = (
+                message_count
+                - self._last_message_count
+            )
+
+            if (
+                elapsed > 0
+                and message_delta >= 0
+            ):
+                self._message_rate = (
+                    message_delta / elapsed
+                )
+
+        self._last_message_count = (
+            message_count
+        )
+
+        self._last_now = now
+
+    @staticmethod
+    def _text(
+        value: Any,
+    ) -> str:
+        if value is None:
+            return ""
+
+        return str(value).strip()
+
+    @staticmethod
+    def _number(
+        value: Any,
+    ) -> float | None:
+        if value is None:
+            return None
+
+        try:
+            return float(value)
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return None
+
+    @staticmethod
+    def _integer(
+        value: Any,
+    ) -> int | None:
+        if value is None:
+            return None
+
+        try:
+            return int(
+                float(value)
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return None

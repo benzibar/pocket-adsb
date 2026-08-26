@@ -9,9 +9,18 @@ class PositionSource(ABC):
         """Return our current position, or None if unavailable."""
         pass
 
+    @abstractmethod
+    def status_text(self) -> str:
+        """Return a short description of the position source state."""
+        pass
+
 
 class FixedPositionSource(PositionSource):
-    def __init__(self, latitude: float, longitude: float) -> None:
+    def __init__(
+        self,
+        latitude: float,
+        longitude: float,
+    ) -> None:
         self.position = Position(
             latitude=latitude,
             longitude=longitude,
@@ -19,3 +28,6 @@ class FixedPositionSource(PositionSource):
 
     def get_position(self) -> Position:
         return self.position
+
+    def status_text(self) -> str:
+        return "FIXED"
