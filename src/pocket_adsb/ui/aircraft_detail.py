@@ -4,7 +4,15 @@ from textual.screen import Screen
 from textual.widgets import Static
 
 from pocket_adsb.models.aircraft import Aircraft
-from pocket_adsb.utils.compass import degrees_to_compass
+from pocket_adsb.utils.formatting import (
+    format_altitude,
+    format_direction_detail,
+    format_distance,
+    format_seen,
+    format_speed,
+    format_text,
+    format_vertical_rate,
+)
 
 
 class AircraftDetailScreen(Screen):
@@ -80,10 +88,8 @@ class AircraftDetailScreen(Screen):
             yield Static("", id="route")
             yield Static("", id="message-details")
 
-        # Custom footer so the main-screen sorting controls
-        # are not shown on the aircraft detail screen.
         yield Static(
-            "Esc: Back",
+            "Esc Back",
             id="detail-footer",
         )
 
@@ -103,57 +109,73 @@ class AircraftDetailScreen(Screen):
 
         if aircraft is None:
             self.query_one("#callsign", Static).update(
-                f"{self.aircraft.callsign} - SIGNAL LOST"
+                f"{self.aircraft.callsign or self.aircraft.icao} - SIGNAL LOST"
             )
             return
 
         self.aircraft = aircraft
 
         selected_altitude = (
-            f"{aircraft.selected_altitude_ft:,} ft"
+            f"{format_altitude(aircraft.selected_altitude_ft)} ft"
             if aircraft.selected_altitude_ft is not None
             else "---"
         )
 
-        vertical_rate = f"{aircraft.vertical_rate_fpm:+,} fpm"
+        altitude = (
+            f"{format_altitude(aircraft.altitude_ft)} ft"
+            if aircraft.altitude_ft is not None
+            else "---"
+        )
+
+        speed = (
+            f"{format_speed(aircraft.speed_kt)} kt"
+            if aircraft.speed_kt is not None
+            else "---"
+        )
+
+        distance = (
+            f"{format_distance(aircraft.distance_nm)} nm"
+            if aircraft.distance_nm is not None
+            else "---"
+        )
 
         self.query_one("#callsign", Static).update(
-            aircraft.callsign
+            aircraft.callsign or aircraft.icao
         )
 
         self.query_one("#aircraft-details", Static).update(
             "AIRCRAFT\n"
-            f"\nRegistration: {aircraft.registration}"
-            f"\nType:         {aircraft.aircraft_type}"
-            f"\nCategory:     {aircraft.category}"
-            f"\nCountry:      {aircraft.country}"
+            f"\nRegistration: {format_text(aircraft.registration)}"
+            f"\nType:         {format_text(aircraft.aircraft_type)}"
+            f"\nCategory:     {format_text(aircraft.category)}"
+            f"\nCountry:      {format_text(aircraft.country)}"
             f"\nICAO:         {aircraft.icao}"
-            f"\nAirline:      {aircraft.airline}"
-            f"\nOperator:     {aircraft.operator}"
-            f"\nSquawk:       {aircraft.squawk}"
+            f"\nAirline:      {format_text(aircraft.airline)}"
+            f"\nOperator:     {format_text(aircraft.operator)}"
+            f"\nSquawk:       {format_text(aircraft.squawk)}"
         )
 
         self.query_one("#flight-details", Static).update(
             "FLIGHT\n"
-            f"\nAltitude:     {aircraft.altitude_ft:,} ft"
+            f"\nAltitude:     {altitude}"
             f"\nSelected:     {selected_altitude}"
-            f"\nSpeed:        {aircraft.speed_kt} kt"
-            f"\nVert rate:    {vertical_rate}"
+            f"\nSpeed:        {speed}"
+            f"\nVert rate:    "
+            f"{format_vertical_rate(aircraft.vertical_rate_fpm)}"
             f"\nTrack:        "
-            f"{degrees_to_compass(aircraft.track_deg)} "
-            f"({aircraft.track_deg:03d}°)"
+            f"{format_direction_detail(aircraft.track_deg)}"
             f"\nBearing:      "
-            f"{degrees_to_compass(aircraft.bearing_from_us_deg)} "
-            f"({aircraft.bearing_from_us_deg:03d}°)"
-            f"\nDistance:     {aircraft.distance_nm:.1f} nm"
+            f"{format_direction_detail(aircraft.bearing_from_us_deg)}"
+            f"\nDistance:     {distance}"
         )
 
         self.query_one("#route", Static).update(
             f"ROUTE   "
-            f"{aircraft.origin} > {aircraft.destination}"
+            f"{format_text(aircraft.origin)} > "
+            f"{format_text(aircraft.destination)}"
         )
 
         self.query_one("#message-details", Static).update(
-            f"Last msg: {aircraft.seen_seconds:.1f}s   "
-            f"Last pos: {aircraft.seen_pos_seconds:.1f}s"
+            f"Last msg: {format_seen(aircraft.seen_seconds)}   "
+            f"Last pos: {format_seen(aircraft.seen_pos_seconds)}"
         )

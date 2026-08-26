@@ -1,17 +1,27 @@
+import argparse
+from pathlib import Path
+
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import DataTable, Footer, Header, Static
 
+from pocket_adsb.services.position_source import FixedPositionSource
 from pocket_adsb.models.aircraft import Aircraft
 from pocket_adsb.services.data_source import AircraftDataSource
+from pocket_adsb.services.readsb import ReadsbDataSource
 from pocket_adsb.services.simulator import AircraftSimulator
 from pocket_adsb.ui.aircraft_detail import AircraftDetailScreen
-from pocket_adsb.utils.compass import degrees_to_compass
+from pocket_adsb.utils.formatting import (
+    format_altitude,
+    format_direction,
+    format_distance,
+    format_seen,
+    format_speed,
+)
 
 
 class PocketADSB(App):
     TITLE = "Pocket ADS-B"
-    SUB_TITLE = "Simulated receiver"
 
     BINDINGS = [
         ("d", "sort_distance", "Dist"),
@@ -37,10 +47,10 @@ class PocketADSB(App):
     }
     """
 
-    def __init__(self) -> None:
+    def __init__(self, data_source: AircraftDataSource) -> None:
         super().__init__()
 
-        self.data_source: AircraftDataSource = AircraftSimulator()
+        self.data_source = data_source
         self.aircraft: list[Aircraft] = []
         self.selected_aircraft_icao: str | None = None
 
@@ -83,15 +93,21 @@ class PocketADSB(App):
         aircraft = list(self.aircraft)
 
         if self.sort_field == "DIST":
-            key = lambda item: item.distance_nm
+            key = lambda item: (
+                item.distance_nm is None,
+                item.distance_nm or 0,
+            )
         elif self.sort_field == "ALT":
-            key = lambda item: item.altitude_ft
+            key = lambda item: (
+                item.altitude_ft is None,
+                item.altitude_ft or 0,
+            )
         elif self.sort_field == "CALL":
-            key = lambda item: item.callsign
+            key = lambda item: item.callsign or item.icao
         elif self.sort_field == "SEEN":
             key = lambda item: item.seen_seconds
         else:
-            key = lambda item: item.distance_nm
+            key = lambda item: item.icao
 
         return sorted(
             aircraft,
@@ -126,13 +142,13 @@ class PocketADSB(App):
 
         for row_index, aircraft in enumerate(sorted_aircraft):
             table.add_row(
-                aircraft.callsign,
-                f"{aircraft.altitude_ft:,}",
-                f"{aircraft.speed_kt}",
-                degrees_to_compass(aircraft.track_deg),
-                degrees_to_compass(aircraft.bearing_from_us_deg),
-                f"{aircraft.distance_nm:.1f}",
-                f"{aircraft.seen_seconds:.1f}s",
+                aircraft.callsign or aircraft.icao,
+                format_altitude(aircraft.altitude_ft),
+                format_speed(aircraft.speed_kt),
+                format_direction(aircraft.track_deg),
+                format_direction(aircraft.bearing_from_us_deg),
+                format_distance(aircraft.distance_nm),
+                format_seen(aircraft.seen_seconds),
                 key=aircraft.icao,
             )
 
@@ -206,5 +222,41 @@ class PocketADSB(App):
             self.push_screen(AircraftDetailScreen(aircraft))
 
 
+def create_data_source(source: str) -> AircraftDataSource:
+    if source == "readsb":
+        path = Path("test_data/readsb_aircraft.json")
+
+        position_source = FixedPositionSource(
+            latitude=52.15,
+            longitude=-2.22,
+        )
+
+        return ReadsbDataSource(
+            path,
+            position_source=position_source,
+        )
+
+    return AircraftSimulator()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Pocket ADS-B",
+    )
+
+    parser.add_argument(
+        "--source",
+        choices=("sim", "readsb"),
+        default="sim",
+        help="Aircraft data source",
+    )
+
+    args = parser.parse_args()
+
+    data_source = create_data_source(args.source)
+
+    PocketADSB(data_source).run()
+
+
 if __name__ == "__main__":
-    PocketADSB().run()
+    main()

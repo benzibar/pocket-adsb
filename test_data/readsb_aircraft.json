@@ -1,0 +1,36 @@
+{
+  "now": 1787742000.0,
+  "messages": 18452,
+  "aircraft": [
+    {
+      "hex": "406b90",
+      "flight": "BAW143  ",
+      "alt_baro": 34000,
+      "gs": 456.2,
+      "track": 94.0,
+      "baro_rate": 1216,
+      "squawk": "5162",
+      "category": "A5",
+      "nav_altitude_mcp": 36000,
+      "lat": 52.0500,
+      "lon": -2.1000,
+      "seen": 0.2,
+      "seen_pos": 0.4
+    },
+    {
+      "hex": "4ca123",
+      "flight": "RYR82QP ",
+      "alt_baro": 12400,
+      "gs": 287.4,
+      "track": 218.0,
+      "baro_rate": 1792,
+      "squawk": "4721",
+      "category": "A3",
+      "nav_altitude_mcp": 14000,
+      "lat": 52.1000,
+      "lon": -2.3000,
+      "seen": 1.4,
+      "seen_pos": 2.1
+    }
+  ]
+}
