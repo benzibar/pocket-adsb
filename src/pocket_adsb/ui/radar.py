@@ -241,7 +241,10 @@ class RadarScreen(Screen):
             radius_y,
         )
 
-        bold_spans, military_spans = self._plot_aircraft(
+        (
+            selected_spans,
+            military_spans,
+        ) = self._plot_aircraft(
             grid,
             centre_x,
             centre_y,
@@ -257,9 +260,16 @@ class RadarScreen(Screen):
             for row in grid
         )
 
-        radar_text = Text(rendered)
+        radar_text = Text(
+            rendered
+        )
 
-        for start_x, start_y, length in military_spans:
+        # Military aircraft are green.
+        for (
+            start_x,
+            start_y,
+            length,
+        ) in military_spans:
             start = (
                 start_y * (width + 1)
                 + start_x
@@ -271,19 +281,30 @@ class RadarScreen(Screen):
                 start + length,
             )
 
-        for start_x, start_y, length in bold_spans:
+        # Selected aircraft are cyan and bold.
+        #
+        # This is deliberately applied AFTER military
+        # styling so selection takes visual priority.
+        for (
+            start_x,
+            start_y,
+            length,
+        ) in selected_spans:
             start = (
                 start_y * (width + 1)
                 + start_x
             )
 
             radar_text.stylize(
-                "bold",
+                "bold bright_cyan",
                 start,
                 start + length,
             )
 
-        canvas.update(radar_text)
+        canvas.update(
+            radar_text
+        )
+
         self._update_status()
 
     def _draw_axes(
@@ -298,14 +319,26 @@ class RadarScreen(Screen):
         height = len(grid)
 
         for x in range(
-            max(0, centre_x - radius_x),
-            min(width, centre_x + radius_x + 1),
+            max(
+                0,
+                centre_x - radius_x,
+            ),
+            min(
+                width,
+                centre_x + radius_x + 1,
+            ),
         ):
             grid[centre_y][x] = "-"
 
         for y in range(
-            max(0, centre_y - radius_y),
-            min(height, centre_y + radius_y + 1),
+            max(
+                0,
+                centre_y - radius_y,
+            ),
+            min(
+                height,
+                centre_y + radius_y + 1,
+            ),
         ):
             grid[y][centre_x] = "|"
 
@@ -327,7 +360,10 @@ class RadarScreen(Screen):
         width = len(grid[0])
         height = len(grid)
 
-        for index, fraction in enumerate(
+        for (
+            index,
+            fraction,
+        ) in enumerate(
             fractions,
             start=1,
         ):
@@ -339,10 +375,25 @@ class RadarScreen(Screen):
                 radius_y * fraction
             )
 
-            west_x = centre_x - horizontal_offset
-            east_x = centre_x + horizontal_offset
-            north_y = centre_y - vertical_offset
-            south_y = centre_y + vertical_offset
+            west_x = (
+                centre_x
+                - horizontal_offset
+            )
+
+            east_x = (
+                centre_x
+                + horizontal_offset
+            )
+
+            north_y = (
+                centre_y
+                - vertical_offset
+            )
+
+            south_y = (
+                centre_y
+                + vertical_offset
+            )
 
             if 0 <= west_x < width:
                 grid[centre_y][west_x] = "+"
@@ -361,10 +412,13 @@ class RadarScreen(Screen):
                 continue
 
             range_value = round(
-                self.range_nm * fraction
+                self.range_nm
+                * fraction
             )
 
-            label = str(range_value)
+            label = str(
+                range_value
+            )
 
             if fraction == 1.0:
                 self._write_text(
@@ -376,7 +430,9 @@ class RadarScreen(Screen):
 
                 self._write_text(
                     grid,
-                    east_x - len(label) - 1,
+                    east_x
+                    - len(label)
+                    - 1,
                     centre_y,
                     label,
                 )
@@ -384,7 +440,9 @@ class RadarScreen(Screen):
             else:
                 self._write_text(
                     grid,
-                    west_x - len(label) - 1,
+                    west_x
+                    - len(label)
+                    - 1,
                     centre_y,
                     label,
                 )
@@ -423,7 +481,9 @@ class RadarScreen(Screen):
             centre_x,
             max(
                 0,
-                centre_y - radius_y - 1,
+                centre_y
+                - radius_y
+                - 1,
             ),
             "N",
         )
@@ -433,7 +493,9 @@ class RadarScreen(Screen):
             centre_x,
             min(
                 len(grid) - 1,
-                centre_y + radius_y + 1,
+                centre_y
+                + radius_y
+                + 1,
             ),
             "S",
         )
@@ -442,7 +504,9 @@ class RadarScreen(Screen):
             grid,
             max(
                 0,
-                centre_x - radius_x - 2,
+                centre_x
+                - radius_x
+                - 2,
             ),
             centre_y,
             "W",
@@ -452,7 +516,9 @@ class RadarScreen(Screen):
             grid,
             min(
                 len(grid[0]) - 1,
-                centre_x + radius_x + 1,
+                centre_x
+                + radius_x
+                + 1,
             ),
             centre_y,
             "E",
@@ -472,7 +538,7 @@ class RadarScreen(Screen):
         width = len(grid[0])
         height = len(grid)
 
-        bold_spans: list[
+        selected_spans: list[
             tuple[int, int, int]
         ] = []
 
@@ -488,7 +554,7 @@ class RadarScreen(Screen):
             ]
         ] = []
 
-        # Calculate all aircraft positions first.
+        # Calculate every aircraft's fixed radar position.
         for aircraft in self._aircraft_in_range():
             if (
                 aircraft.distance_nm is None
@@ -533,25 +599,24 @@ class RadarScreen(Screen):
                 )
             )
 
-        # -------------------------------------------------
-        # Draw ALL position markers first.
+        # Draw all position markers first.
         #
-        # Crucially, x/y always represents the CENTRE
-        # character of the three-character marker:
+        # The centre character is always at the exact
+        # calculated aircraft position:
         #
         #     (•)
         #      ^
         #
-        # and:
+        # Selected:
         #
         #     [*]
         #      ^
         #
-        # Selection therefore cannot change the aircraft's
-        # plotted position.
-        # -------------------------------------------------
-
-        for aircraft, x, y in plotted:
+        for (
+            aircraft,
+            x,
+            y,
+        ) in plotted:
             is_selected = (
                 aircraft.icao
                 == self.selected_icao
@@ -563,7 +628,9 @@ class RadarScreen(Screen):
                 else "(•)"
             )
 
-            marker_x = x - 1
+            marker_x = (
+                x - 1
+            )
 
             self._write_text(
                 grid,
@@ -582,7 +649,7 @@ class RadarScreen(Screen):
                 )
 
             if is_selected:
-                bold_spans.append(
+                selected_spans.append(
                     (
                         marker_x,
                         y,
@@ -590,22 +657,28 @@ class RadarScreen(Screen):
                     )
                 )
 
-        # -------------------------------------------------
-        # Draw labels independently of position markers.
-        # -------------------------------------------------
-
-        for aircraft, x, y in plotted:
+        # Draw text labels separately so collision
+        # avoidance cannot move the actual aircraft
+        # position marker.
+        for (
+            aircraft,
+            x,
+            y,
+        ) in plotted:
             callsign = (
                 aircraft.callsign
                 or aircraft.icao
             )
 
-            direction = self._track_direction(
-                aircraft.track_deg
+            direction = (
+                self._track_direction(
+                    aircraft.track_deg
+                )
             )
 
             label = (
-                f"{callsign} - {direction}"
+                f"{callsign} - "
+                f"{direction}"
             )
 
             is_selected = (
@@ -613,7 +686,10 @@ class RadarScreen(Screen):
                 == self.selected_icao
             )
 
-            label_x, label_y = (
+            (
+                label_x,
+                label_y,
+            ) = (
                 self._choose_aircraft_label_position(
                     grid,
                     x,
@@ -639,7 +715,7 @@ class RadarScreen(Screen):
                 )
 
             if is_selected:
-                bold_spans.append(
+                selected_spans.append(
                     (
                         label_x,
                         label_y,
@@ -647,7 +723,10 @@ class RadarScreen(Screen):
                     )
                 )
 
-        return bold_spans, military_spans
+        return (
+            selected_spans,
+            military_spans,
+        )
 
     def _choose_aircraft_label_position(
         self,
@@ -657,36 +736,32 @@ class RadarScreen(Screen):
         label: str,
     ) -> tuple[int, int]:
         """
-        Position the descriptive label independently
-        from the aircraft's actual position marker.
+        Position descriptive text independently
+        from the aircraft's actual marker.
 
-        The marker itself never moves.
-
-        Preferred layout:
+        Preferred:
 
             (•) CALLSIGN - NE
              ^
              exact aircraft coordinate
 
-        If there isn't room, the text can move while
-        the marker remains fixed.
+        If necessary the label may move left,
+        above or below, but the marker stays fixed.
         """
 
         width = len(grid[0])
         height = len(grid)
 
-        label_length = len(label)
+        label_length = len(
+            label
+        )
 
-        # Marker occupies:
-        #
-        # aircraft_x - 1
-        # aircraft_x
-        # aircraft_x + 1
-        #
-        # Leave one blank column after it.
-        right_x = aircraft_x + 3
+        # Marker occupies x-1, x, x+1.
+        # Leave one blank character after it.
+        right_x = (
+            aircraft_x + 3
+        )
 
-        # Left-side label ends one column before marker.
         left_x = (
             aircraft_x
             - 3
@@ -694,49 +769,50 @@ class RadarScreen(Screen):
         )
 
         candidates = [
-            # Same row, right of marker.
             (
                 right_x,
                 aircraft_y,
             ),
-
-            # Same row, left of marker.
             (
                 left_x,
                 aircraft_y,
             ),
-
-            # One row below, right.
             (
                 right_x,
                 aircraft_y + 1,
             ),
-
-            # One row below, left.
             (
                 left_x,
                 aircraft_y + 1,
             ),
-
-            # One row above, right.
             (
                 right_x,
                 aircraft_y - 1,
             ),
-
-            # One row above, left.
             (
                 left_x,
                 aircraft_y - 1,
             ),
         ]
 
-        best_position: tuple[int, int] | None = None
-        best_score: int | None = None
+        best_position: (
+            tuple[int, int]
+            | None
+        ) = None
 
-        for candidate_x, candidate_y in candidates:
+        best_score: (
+            int
+            | None
+        ) = None
+
+        for (
+            candidate_x,
+            candidate_y,
+        ) in candidates:
             if not (
-                0 <= candidate_y < height
+                0
+                <= candidate_y
+                < height
             ):
                 continue
 
@@ -758,7 +834,8 @@ class RadarScreen(Screen):
                 existing = grid[
                     candidate_y
                 ][
-                    candidate_x + offset
+                    candidate_x
+                    + offset
                 ]
 
                 if existing != " ":
@@ -769,6 +846,7 @@ class RadarScreen(Screen):
                 or score < best_score
             ):
                 best_score = score
+
                 best_position = (
                     candidate_x,
                     candidate_y,
@@ -780,7 +858,7 @@ class RadarScreen(Screen):
         if best_position is not None:
             return best_position
 
-        # Last resort: fit the label on screen.
+        # Last resort: keep the label on screen.
         fallback_x = min(
             max(
                 right_x,
@@ -788,7 +866,8 @@ class RadarScreen(Screen):
             ),
             max(
                 0,
-                width - label_length,
+                width
+                - label_length,
             ),
         )
 
@@ -819,7 +898,8 @@ class RadarScreen(Screen):
 
         index = int(
             (
-                track + 22.5
+                track
+                + 22.5
             )
             // 45
         ) % 8
@@ -835,19 +915,26 @@ class RadarScreen(Screen):
             "NW",
         )
 
-        return directions[index]
+        return directions[
+            index
+        ]
 
-    def _update_status(self) -> None:
+    def _update_status(
+        self,
+    ) -> None:
         status = self.query_one(
             "#radar-status",
             Static,
         )
 
-        selected = self._selected_aircraft()
+        selected = (
+            self._selected_aircraft()
+        )
 
         if selected is None:
             status.update(
-                f"RNG {self.range_nm}nm | "
+                f"RNG "
+                f"{self.range_nm}nm | "
                 "No aircraft selected"
             )
             return
@@ -861,7 +948,8 @@ class RadarScreen(Screen):
             degrees_to_compass(
                 selected.bearing_from_us_deg
             )
-            if selected.bearing_from_us_deg is not None
+            if selected.bearing_from_us_deg
+            is not None
             else "---"
         )
 
@@ -869,16 +957,21 @@ class RadarScreen(Screen):
             degrees_to_compass(
                 selected.track_deg
             )
-            if selected.track_deg is not None
+            if selected.track_deg
+            is not None
             else "---"
         )
 
-        distance = format_distance(
-            selected.distance_nm
+        distance = (
+            format_distance(
+                selected.distance_nm
+            )
         )
 
-        altitude = format_altitude(
-            selected.altitude_ft
+        altitude = (
+            format_altitude(
+                selected.altitude_ft
+            )
         )
 
         status.update(
@@ -890,12 +983,15 @@ class RadarScreen(Screen):
             f"{altitude}ft"
         )
 
-    def action_cycle_range(self) -> None:
+    def action_cycle_range(
+        self,
+    ) -> None:
         current_index = (
             self.RANGES_NM.index(
                 self.range_nm
             )
-            if self.range_nm in self.RANGES_NM
+            if self.range_nm
+            in self.RANGES_NM
             else 0
         )
 
@@ -914,11 +1010,19 @@ class RadarScreen(Screen):
         self._ensure_selection()
         self.update_radar()
 
-    def action_next_aircraft(self) -> None:
-        self._move_selection(1)
+    def action_next_aircraft(
+        self,
+    ) -> None:
+        self._move_selection(
+            1
+        )
 
-    def action_previous_aircraft(self) -> None:
-        self._move_selection(-1)
+    def action_previous_aircraft(
+        self,
+    ) -> None:
+        self._move_selection(
+            -1
+        )
 
     def _move_selection(
         self,
@@ -934,18 +1038,24 @@ class RadarScreen(Screen):
         current_index = 0
 
         if self.selected_icao is not None:
-            for index, aircraft in enumerate(
+            for (
+                index,
+                aircraft,
+            ) in enumerate(
                 aircraft_list
             ):
                 if (
                     aircraft.icao
                     == self.selected_icao
                 ):
-                    current_index = index
+                    current_index = (
+                        index
+                    )
                     break
 
         new_index = (
-            current_index + direction
+            current_index
+            + direction
         ) % len(
             aircraft_list
         )
@@ -962,7 +1072,9 @@ class RadarScreen(Screen):
 
         self.update_radar()
 
-    def action_open_details(self) -> None:
+    def action_open_details(
+        self,
+    ) -> None:
         aircraft = (
             self._selected_aircraft()
         )
@@ -974,7 +1086,9 @@ class RadarScreen(Screen):
                 )
             )
 
-    def action_close_radar(self) -> None:
+    def action_close_radar(
+        self,
+    ) -> None:
         self.app.pop_screen()
 
     @staticmethod
@@ -989,12 +1103,25 @@ class RadarScreen(Screen):
         ):
             return
 
-        width = len(grid[y])
+        width = len(
+            grid[y]
+        )
 
-        for offset, character in enumerate(
+        for (
+            offset,
+            character,
+        ) in enumerate(
             text
         ):
-            position = x + offset
+            position = (
+                x + offset
+            )
 
-            if 0 <= position < width:
-                grid[y][position] = character
+            if (
+                0
+                <= position
+                < width
+            ):
+                grid[y][position] = (
+                    character
+                )
