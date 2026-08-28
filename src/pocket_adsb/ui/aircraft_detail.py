@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import airportsdata
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
@@ -14,6 +18,81 @@ from pocket_adsb.utils.formatting import (
     format_text,
     format_vertical_rate,
 )
+
+
+_AIRPORTS_IATA = airportsdata.load("IATA")
+_AIRPORTS_ICAO = airportsdata.load("ICAO")
+
+
+def format_airport(
+    code: str,
+) -> str:
+    code = code.strip().upper()
+
+    if not code:
+        return "---"
+
+    airport = None
+
+    if len(code) == 3:
+        airport = _AIRPORTS_IATA.get(
+            code
+        )
+
+    elif len(code) == 4:
+        airport = _AIRPORTS_ICAO.get(
+            code
+        )
+
+    if airport is None:
+        return code
+
+    name = str(
+        airport.get(
+            "name",
+            "",
+        )
+    ).strip()
+
+    city = str(
+        airport.get(
+            "city",
+            "",
+        )
+    ).strip()
+
+    country = str(
+        airport.get(
+            "country",
+            "",
+        )
+    ).strip()
+
+    parts = [
+        part
+        for part in (
+            city,
+            country,
+        )
+        if part
+    ]
+
+    location = ", ".join(
+        parts
+    )
+
+    if name and location:
+        return (
+            f"{code} - {name} "
+            f"({location})"
+        )
+
+    if name:
+        return (
+            f"{code} - {name}"
+        )
+
+    return code
 
 
 class AircraftDetailScreen(Screen):
@@ -69,49 +148,95 @@ class AircraftDetailScreen(Screen):
     }
     """
 
-    def __init__(self, aircraft: Aircraft) -> None:
+    def __init__(
+        self,
+        aircraft: Aircraft,
+    ) -> None:
         super().__init__()
 
-        self.aircraft_icao = aircraft.icao
+        self.aircraft_icao = (
+            aircraft.icao
+        )
+
         self.aircraft = aircraft
 
-    def compose(self) -> ComposeResult:
-        with Vertical(id="detail"):
-            yield Static("", id="callsign")
+    def compose(
+        self,
+    ) -> ComposeResult:
+        with Vertical(
+            id="detail"
+        ):
+            yield Static(
+                "",
+                id="callsign",
+            )
 
-            with Horizontal(id="columns"):
-                with Vertical(classes="detail-column"):
-                    yield Static("", id="aircraft-details")
+            with Horizontal(
+                id="columns"
+            ):
+                with Vertical(
+                    classes="detail-column"
+                ):
+                    yield Static(
+                        "",
+                        id="aircraft-details",
+                    )
 
-                with Vertical(classes="detail-column"):
-                    yield Static("", id="flight-details")
+                with Vertical(
+                    classes="detail-column"
+                ):
+                    yield Static(
+                        "",
+                        id="flight-details",
+                    )
 
-            yield Static("", id="route")
-            yield Static("", id="message-details")
+            yield Static(
+                "",
+                id="route",
+            )
+
+            yield Static(
+                "",
+                id="message-details",
+            )
 
         yield Static(
             "Esc Back",
             id="detail-footer",
         )
 
-    def on_mount(self) -> None:
+    def on_mount(
+        self,
+    ) -> None:
         self.update_display()
-        self.set_interval(1.0, self.update_display)
 
-    def update_display(self) -> None:
+        self.set_interval(
+            1.0,
+            self.update_display,
+        )
+
+    def update_display(
+        self,
+    ) -> None:
         aircraft = next(
             (
                 item
                 for item in self.app.aircraft
-                if item.icao == self.aircraft_icao
+                if item.icao
+                == self.aircraft_icao
             ),
             None,
         )
 
         if aircraft is None:
-            self.query_one("#callsign", Static).update(
-                f"{self.aircraft.callsign or self.aircraft.icao} - SIGNAL LOST"
+            self.query_one(
+                "#callsign",
+                Static,
+            ).update(
+                f"{self.aircraft.callsign or self.aircraft.icao} "
+                "- SIGNAL LOST"
             )
+
             return
 
         self.aircraft = aircraft
@@ -140,46 +265,87 @@ class AircraftDetailScreen(Screen):
             else "---"
         )
 
-        self.query_one("#callsign", Static).update(
-            aircraft.callsign or aircraft.icao
+        self.query_one(
+            "#callsign",
+            Static,
+        ).update(
+            aircraft.callsign
+            or aircraft.icao
         )
 
-        self.query_one("#aircraft-details", Static).update(
+        self.query_one(
+            "#aircraft-details",
+            Static,
+        ).update(
             "AIRCRAFT\n"
-            f"\nRegistration: {format_text(aircraft.registration)}"
-            f"\nType:         {format_text(aircraft.aircraft_type)}"
-            f"\nDescription:  {format_text(aircraft.description)}"
-            f"\nCategory:     {category_description(aircraft.category)}"
-            f"\nCountry:      {format_text(aircraft.country)}"
-            f"\nICAO:         {aircraft.icao}"
-            f"\nOperator:     {format_text(aircraft.operator)}"
+            f"\nRegistration: "
+            f"{format_text(aircraft.registration)}"
+            f"\nType:         "
+            f"{format_text(aircraft.aircraft_type)}"
+            f"\nDescription:  "
+            f"{format_text(aircraft.description)}"
+            f"\nCategory:     "
+            f"{category_description(aircraft.category)}"
+            f"\nCountry:      "
+            f"{format_text(aircraft.country)}"
+            f"\nICAO:         "
+            f"{aircraft.icao}"
+            f"\nOperator:     "
+            f"{format_text(aircraft.operator)}"
         )
 
-        self.query_one("#flight-details", Static).update(
+        self.query_one(
+            "#flight-details",
+            Static,
+        ).update(
             "FLIGHT\n"
-            f"\nFlight ID:    {format_text(aircraft.callsign)}"
-            f"\nAirline:      {format_text(aircraft.airline)}"
-            f"\nCallsign:     {format_text(aircraft.airline_callsign)}"
-            f"\nSquawk:       {format_text(aircraft.squawk)}"
-            f"\nAltitude:     {altitude}"
-            f"\nSelected:     {selected_altitude}"
-            f"\nSpeed:        {speed}"
+            f"\nFlight ID:    "
+            f"{format_text(aircraft.callsign)}"
+            f"\nAirline:      "
+            f"{format_text(aircraft.airline)}"
+            f"\nCallsign:     "
+            f"{format_text(aircraft.airline_callsign)}"
+            f"\nSquawk:       "
+            f"{format_text(aircraft.squawk)}"
+            f"\nAltitude:     "
+            f"{altitude}"
+            f"\nSelected:     "
+            f"{selected_altitude}"
+            f"\nSpeed:        "
+            f"{speed}"
             f"\nVert rate:    "
             f"{format_vertical_rate(aircraft.vertical_rate_fpm)}"
             f"\nTrack:        "
             f"{format_direction_detail(aircraft.track_deg)}"
             f"\nBearing:      "
             f"{format_direction_detail(aircraft.bearing_from_us_deg)}"
-            f"\nDistance:     {distance}"
+            f"\nDistance:     "
+            f"{distance}"
         )
 
-        self.query_one("#route", Static).update(
-            f"ROUTE   "
-            f"{format_text(aircraft.origin)} > "
-            f"{format_text(aircraft.destination)}"
+        origin = format_airport(
+            aircraft.origin
         )
 
-        self.query_one("#message-details", Static).update(
-            f"Last msg: {format_seen(aircraft.seen_seconds)}   "
-            f"Last pos: {format_seen(aircraft.seen_pos_seconds)}"
+        destination = format_airport(
+            aircraft.destination
+        )
+
+        self.query_one(
+            "#route",
+            Static,
+        ).update(
+            "ROUTE\n"
+            f"\nOrigin:       {origin}"
+            f"\nDestination:  {destination}"
+        )
+
+        self.query_one(
+            "#message-details",
+            Static,
+        ).update(
+            f"Last msg: "
+            f"{format_seen(aircraft.seen_seconds)}   "
+            f"Last pos: "
+            f"{format_seen(aircraft.seen_pos_seconds)}"
         )
