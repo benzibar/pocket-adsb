@@ -7,6 +7,7 @@ from textual.containers import Container
 from textual.widgets import DataTable, Footer, Header, Static
 
 from pocket_adsb.models.aircraft import Aircraft
+from pocket_adsb.models.position import Position
 from pocket_adsb.services.adsbdb_route_provider import (
     AdsbDbRouteProvider,
 )
@@ -22,7 +23,7 @@ from pocket_adsb.services.data_source import AircraftDataSource
 from pocket_adsb.services.database_update import AircraftDatabaseUpdater
 from pocket_adsb.services.enrichment import AircraftEnricher
 from pocket_adsb.services.network_status import NetworkStatusService
-from pocket_adsb.services.position_source import FixedPositionSource
+from pocket_adsb.services.position_source import GpsdPositionSource
 from pocket_adsb.services.readsb import ReadsbDataSource
 from pocket_adsb.services.route_cache import RouteCache
 from pocket_adsb.services.route_service import RouteService
@@ -518,9 +519,11 @@ def create_data_source(
     readsb_path: Path,
 ) -> AircraftDataSource:
     if source == "readsb":
-        position_source = FixedPositionSource(
-            latitude=52.15,
-            longitude=-2.22,
+        position_source = GpsdPositionSource(
+            fallback_position=Position(
+                latitude=52.15,
+                longitude=-2.22,
+            )
         )
 
         return ReadsbDataSource(
