@@ -226,7 +226,7 @@ class PocketADSB(App):
         self.refresh_aircraft()
 
         self.set_interval(
-            1.0,
+            5.0,
             self.refresh_aircraft,
         )
 
