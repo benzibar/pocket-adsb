@@ -35,9 +35,6 @@ class ReadsbDataSource(AircraftDataSource):
         data = self._read_json()
 
         if data is None:
-            # Retain the last valid snapshot if readsb
-            # happens to be updating aircraft.json while
-            # Pocket ADS-B attempts to read it.
             return self._last_aircraft
 
         aircraft_data = data.get(
@@ -204,6 +201,14 @@ class ReadsbDataSource(AircraftDataSource):
             raw.get("seen_pos")
         )
 
+        db_flags = self._integer(
+            raw.get("dbFlags")
+        )
+
+        is_military = bool(
+            (db_flags or 0) & 1
+        )
+
         return Aircraft(
             icao=icao,
             callsign=self._text(
@@ -221,6 +226,7 @@ class ReadsbDataSource(AircraftDataSource):
             squawk=self._text(
                 raw.get("squawk")
             ),
+            is_military=is_military,
             altitude_ft=altitude,
             selected_altitude_ft=selected_altitude,
             speed_kt=speed,

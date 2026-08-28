@@ -13,6 +13,7 @@ class Aircraft:
     airline: str = ""
     airline_callsign: str = ""
     operator: str = ""
+    is_military: bool = False
 
     altitude_ft: int | None = None
     selected_altitude_ft: int | None = None

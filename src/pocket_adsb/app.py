@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import DataTable, Footer, Header, Static
@@ -115,6 +116,11 @@ class PocketADSB(App):
 
     #aircraft-table {
         height: 1fr;
+    }
+
+    #aircraft-table > .datatable--header {
+        color: cyan;
+        text-style: bold;
     }
 
     #receiver-status {
@@ -332,7 +338,7 @@ class PocketADSB(App):
         ) in enumerate(
             sorted_aircraft
         ):
-            table.add_row(
+            row_values = [
                 (
                     aircraft.callsign
                     or aircraft.icao
@@ -368,6 +374,19 @@ class PocketADSB(App):
                 format_seen(
                     aircraft.seen_seconds
                 ),
+            ]
+
+            if aircraft.is_military:
+                row_values = [
+                    Text(
+                        str(value),
+                        style="bright_green",
+                    )
+                    for value in row_values
+                ]
+
+            table.add_row(
+                *row_values,
                 key=aircraft.icao,
             )
 

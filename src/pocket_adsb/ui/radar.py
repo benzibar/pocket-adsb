@@ -241,7 +241,7 @@ class RadarScreen(Screen):
             radius_y,
         )
 
-        bold_spans = self._plot_aircraft(
+        bold_spans, military_spans = self._plot_aircraft(
             grid,
             centre_x,
             centre_y,
@@ -258,6 +258,18 @@ class RadarScreen(Screen):
         )
 
         radar_text = Text(rendered)
+
+        for start_x, start_y, length in military_spans:
+            start = (
+                start_y * (width + 1)
+                + start_x
+            )
+
+            radar_text.stylize(
+                "bright_green",
+                start,
+                start + length,
+            )
 
         for start_x, start_y, length in bold_spans:
             start = (
@@ -453,11 +465,18 @@ class RadarScreen(Screen):
         centre_y: int,
         radius_x: int,
         radius_y: int,
-    ) -> list[tuple[int, int, int]]:
+    ) -> tuple[
+        list[tuple[int, int, int]],
+        list[tuple[int, int, int]],
+    ]:
         width = len(grid[0])
         height = len(grid)
 
         bold_spans: list[
+            tuple[int, int, int]
+        ] = []
+
+        military_spans: list[
             tuple[int, int, int]
         ] = []
 
@@ -553,6 +572,15 @@ class RadarScreen(Screen):
                 marker,
             )
 
+            if aircraft.is_military:
+                military_spans.append(
+                    (
+                        marker_x,
+                        y,
+                        len(marker),
+                    )
+                )
+
             if is_selected:
                 bold_spans.append(
                     (
@@ -601,6 +629,15 @@ class RadarScreen(Screen):
                 label,
             )
 
+            if aircraft.is_military:
+                military_spans.append(
+                    (
+                        label_x,
+                        label_y,
+                        len(label),
+                    )
+                )
+
             if is_selected:
                 bold_spans.append(
                     (
@@ -610,7 +647,7 @@ class RadarScreen(Screen):
                     )
                 )
 
-        return bold_spans
+        return bold_spans, military_spans
 
     def _choose_aircraft_label_position(
         self,
