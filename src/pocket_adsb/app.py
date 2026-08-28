@@ -37,6 +37,64 @@ from pocket_adsb.utils.formatting import (
 )
 
 
+def format_selected_altitude(
+    altitude_ft: int | None,
+) -> str:
+    """Format selected altitude for the compact aircraft table."""
+    if altitude_ft is None:
+        return "---"
+
+    return f"{altitude_ft:,}"
+
+
+def format_vertical_state(
+    vertical_rate_fpm: int | None,
+) -> str:
+    """Return a compact climb / level / descent indication."""
+    if vertical_rate_fpm is None:
+        return "---"
+
+    if vertical_rate_fpm > 200:
+        return "CLB"
+
+    if vertical_rate_fpm < -200:
+        return "DES"
+
+    return "LVL"
+
+
+def format_aircraft_type(
+    aircraft_type: str,
+) -> str:
+    """Format aircraft type for the compact table."""
+    aircraft_type = aircraft_type.strip()
+
+    if not aircraft_type:
+        return "---"
+
+    return aircraft_type
+
+
+def format_route(
+    origin: str,
+    destination: str,
+) -> str:
+    """Format origin and destination as a compact route."""
+    origin = origin.strip().upper()
+    destination = destination.strip().upper()
+
+    if origin and destination:
+        return f"{origin}-{destination}"
+
+    if origin:
+        return f"{origin}-?"
+
+    if destination:
+        return f"?-{destination}"
+
+    return "---"
+
+
 class PocketADSB(App):
     TITLE = "Pocket ADS-B"
 
@@ -146,11 +204,15 @@ class PocketADSB(App):
 
         table.add_columns(
             "CALL",
+            "TYPE",
             "ALT",
+            "SEL",
+            "V/S",
             "SPD",
             "TRK",
             "BRG",
             "DIST",
+            "ROUTE",
             "SEEN",
         )
 
@@ -275,8 +337,17 @@ class PocketADSB(App):
                     aircraft.callsign
                     or aircraft.icao
                 ),
+                format_aircraft_type(
+                    aircraft.aircraft_type
+                ),
                 format_altitude(
                     aircraft.altitude_ft
+                ),
+                format_selected_altitude(
+                    aircraft.selected_altitude_ft
+                ),
+                format_vertical_state(
+                    aircraft.vertical_rate_fpm
                 ),
                 format_speed(
                     aircraft.speed_kt
@@ -289,6 +360,10 @@ class PocketADSB(App):
                 ),
                 format_distance(
                     aircraft.distance_nm
+                ),
+                format_route(
+                    aircraft.origin,
+                    aircraft.destination,
                 ),
                 format_seen(
                     aircraft.seen_seconds
