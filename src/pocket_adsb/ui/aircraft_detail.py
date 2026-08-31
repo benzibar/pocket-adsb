@@ -201,7 +201,7 @@ class AircraftDetailScreen(Screen):
             )
 
         yield Static(
-            "Esc Back",
+            "Q Back",
             id="detail-footer",
         )
 

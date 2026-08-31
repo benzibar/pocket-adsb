@@ -34,19 +34,8 @@ from pocket_adsb.utils.formatting import (
     format_altitude,
     format_direction,
     format_distance,
-    format_seen,
     format_speed,
 )
-
-
-def format_selected_altitude(
-    altitude_ft: int | None,
-) -> str:
-    """Format selected altitude for the compact aircraft table."""
-    if altitude_ft is None:
-        return "---"
-
-    return f"{altitude_ft:,}"
 
 
 def format_vertical_state(
@@ -105,7 +94,6 @@ class PocketADSB(App):
         ("d", "sort_distance", "Dist"),
         ("a", "sort_altitude", "Alt"),
         ("c", "sort_callsign", "Call"),
-        ("s", "sort_seen", "Seen"),
         ("r", "refresh", "Ref"),
         ("q", "quit", "Quit"),
     ]
@@ -213,14 +201,12 @@ class PocketADSB(App):
             "CALL",
             "TYPE",
             "ALT",
-            "SEL",
             "V/S",
             "SPD",
             "TRK",
             "BRG",
             "DIST",
             "ROUTE",
-            "SEEN",
         )
 
         self.refresh_aircraft()
@@ -258,11 +244,6 @@ class PocketADSB(App):
                 or item.icao
             )
 
-        elif self.sort_field == "SEEN":
-            key = lambda item: (
-                item.seen_seconds
-            )
-
         else:
             key = lambda item: (
                 item.icao
@@ -281,7 +262,6 @@ class PocketADSB(App):
             "DIST": "D",
             "ALT": "A",
             "CALL": "C",
-            "SEEN": "S",
         }
 
         direction = (
@@ -350,9 +330,6 @@ class PocketADSB(App):
                 format_altitude(
                     aircraft.altitude_ft
                 ),
-                format_selected_altitude(
-                    aircraft.selected_altitude_ft
-                ),
                 format_vertical_state(
                     aircraft.vertical_rate_fpm
                 ),
@@ -371,9 +348,6 @@ class PocketADSB(App):
                 format_route(
                     aircraft.origin,
                     aircraft.destination,
-                ),
-                format_seen(
-                    aircraft.seen_seconds
                 ),
             ]
 
@@ -466,13 +440,6 @@ class PocketADSB(App):
     ) -> None:
         self.set_sort(
             "CALL"
-        )
-
-    def action_sort_seen(
-        self,
-    ) -> None:
-        self.set_sort(
-            "SEEN"
         )
 
     def action_refresh(
