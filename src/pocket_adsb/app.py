@@ -90,12 +90,13 @@ class PocketADSB(App):
     TITLE = "Pocket ADS-B"
 
     BINDINGS = [
-        ("x", "open_radar", "Radar"),
-        ("d", "sort_distance", "Dist"),
+        ("x", "open_radar", "Rdr"),
+        ("d", "sort_distance", "Dis"),
         ("a", "sort_altitude", "Alt"),
         ("c", "sort_callsign", "Call"),
+        ("t", "sort_type", "Typ"),
         ("r", "refresh", "Ref"),
-        ("q", "quit", "Quit"),
+        ("q", "quit", "Qit"),
     ]
 
     CSS = """
@@ -244,6 +245,13 @@ class PocketADSB(App):
                 or item.icao
             )
 
+        elif self.sort_field == "TYPE":
+            key = lambda item: (
+                not bool(item.aircraft_type),
+                (item.aircraft_type or "").upper(),
+                (item.callsign or item.icao).upper(),
+            )
+
         else:
             key = lambda item: (
                 item.icao
@@ -262,6 +270,7 @@ class PocketADSB(App):
             "DIST": "D",
             "ALT": "A",
             "CALL": "C",
+            "TYPE": "T",
         }
 
         direction = (
@@ -440,6 +449,13 @@ class PocketADSB(App):
     ) -> None:
         self.set_sort(
             "CALL"
+        )
+
+    def action_sort_type(
+        self,
+    ) -> None:
+        self.set_sort(
+            "TYPE"
         )
 
     def action_refresh(
