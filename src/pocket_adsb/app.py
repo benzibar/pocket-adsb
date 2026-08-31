@@ -115,6 +115,7 @@ class PocketADSB(App):
 
     #receiver-status {
         height: 1;
+        color: cyan;
         padding: 0 1;
     }
     """
